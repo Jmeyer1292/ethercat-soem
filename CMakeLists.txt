@@ -59,11 +59,17 @@ catkin_package(
 ## Build ##
 ###########
 
+# Set compiler flags from the makefile of original project
+SET(GCC_COMPILE_FLAGS "-fomit-frame-pointer -fno-strict-aliasing -fshort-wchar -fno-rtti -fno-exceptions")
+
+add_definitions(${GCC_COMPILE_FLAGS})
+
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(include)
 
 add_library(ethercat_soem
+  include/ethercat_soem/ecat.h
   include/ethercat_soem/osal.h
   include/ethercat_soem/oshw.h
   include/ethercat_soem/nicdrv.h
@@ -77,6 +83,8 @@ add_library(ethercat_soem
   include/ethercat_soem/ethercatconfig.h
   include/ethercat_soem/ethercatcoe.h
   include/ethercat_soem/ethercatbase.h
+  include/ethercat_soem/osal_defs.h
+  src/ecat.c
   src/osal.c
   src/oshw.c
   src/nicdrv.c

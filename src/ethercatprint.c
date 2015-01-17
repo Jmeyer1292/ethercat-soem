@@ -258,17 +258,17 @@ const ec_mbxerrorlist_t ec_mbxerrorlist[] = {
  * @param[in] sdoerrorcode   = SDO error code as defined in EtherCAT protocol
  * @return readable string
  */
-char* ec_sdoerror2string( uint32 sdoerrorcode)
+const char* ec_sdoerror2string( uint32 sdoerrorcode)
 {
    int i = 0;
 
-   while ( (ec_sdoerrorlist[i].errorcode != 0xfffffffful) && 
+   while ( (ec_sdoerrorlist[i].errorcode != 0xffffffffUL) &&
            (ec_sdoerrorlist[i].errorcode != sdoerrorcode) ) 
    {
       i++;
    }
    
-   return (char*) ec_sdoerrorlist[i].errordescription;
+   return ec_sdoerrorlist[i].errordescription;
 }
 
 /** Look up text string that belongs to AL status code.
@@ -343,7 +343,7 @@ char* ecx_elist2string(ecx_contextt *context)
          case EC_ERR_TYPE_SDO_ERROR:
          {
             sprintf(estring, "%s SDO slave:%d index:%4.4x.%2.2x error:%8.8x %s\n", 
-                    timestr, Ec.Slave, Ec.Index, Ec.SubIdx, Ec.AbortCode, ec_sdoerror2string(Ec.AbortCode));            
+                    timestr, Ec.Slave, Ec.Index, Ec.SubIdx, (unsigned)Ec.AbortCode, ec_sdoerror2string(Ec.AbortCode));
             break;
          }
          case EC_ERR_TYPE_EMERGENCY:
@@ -361,13 +361,13 @@ char* ecx_elist2string(ecx_contextt *context)
          case EC_ERR_TYPE_SDOINFO_ERROR:
          {   
             sprintf(estring, "%s SDO slave:%d index:%4.4x.%2.2x error:%8.8x %s\n", 
-                    timestr, Ec.Slave, Ec.Index, Ec.SubIdx, Ec.AbortCode, ec_sdoerror2string(Ec.AbortCode));            
+                    timestr, Ec.Slave, Ec.Index, Ec.SubIdx, (unsigned)Ec.AbortCode, ec_sdoerror2string(Ec.AbortCode));
             break;
          }
          case EC_ERR_TYPE_SOE_ERROR:
          {   
             sprintf(estring, "%s SoE slave:%d IDN:%4.4x error:%4.4x %s\n", 
-                    timestr, Ec.Slave, Ec.Index, Ec.AbortCode, ec_soeerror2string(Ec.ErrorCode));            
+                    timestr, Ec.Slave, Ec.Index, (unsigned)Ec.AbortCode, ec_soeerror2string(Ec.ErrorCode));
             break;
          }
          case EC_ERR_TYPE_MBX_ERROR:
@@ -379,7 +379,8 @@ char* ecx_elist2string(ecx_contextt *context)
          default:
          {
             sprintf(estring, "%s error:%8.8x\n", 
-                    timestr, Ec.AbortCode);
+                    timestr, (unsigned)Ec.AbortCode);
+            break;
          }
       }
       return (char*) estring;

@@ -27,7 +27,7 @@
  * This exception does not invalidate any other reasons why a work based on
  * this file might be covered by the GNU General Public License.
  *
- * The EtherCAT Technology, the trade name and logo “EtherCAT” are the intellectual
+ * The EtherCAT Technology, the trade name and logo "EtherCAT" are the intellectual
  * property of, and protected by Beckhoff Automation GmbH. You can use SOEM for
  * the sole purpose of creating, using and/or selling or otherwise distributing
  * an EtherCAT network master provided that an EtherCAT Master License is obtained
@@ -102,6 +102,7 @@ void ecx_SDOerror(ecx_contextt *context, uint16 Slave, uint16 Index, uint8 SubId
 {
    ec_errort Ec;
 
+   memset(&Ec, 0, sizeof(Ec));
    Ec.Time = osal_current_time();
    Ec.Slave = Slave;
    Ec.Index = Index;
@@ -124,6 +125,7 @@ static void ecx_SDOinfoerror(ecx_contextt *context, uint16 Slave, uint16 Index, 
 {
    ec_errort Ec;
 
+   memset(&Ec, 0, sizeof(Ec));
    Ec.Slave = Slave;
    Ec.Index = Index;
    Ec.SubIdx = SubIdx;
@@ -262,7 +264,7 @@ int ecx_SDOread(ecx_contextt *context, uint16 slave, uint16 index, uint8 subinde
                         /* is mailbox transfered to slave ? */
                         if (wkc > 0)
                         {
-                            ec_clearmbx(&MbxIn);
+                           ec_clearmbx(&MbxIn);
                            /* read slave response */
                            wkc = ecx_mbxreceive(context, slave, (ec_mbxbuft *)&MbxIn, timeout);
                            /* has slave responded ? */
@@ -287,7 +289,7 @@ int ecx_SDOread(ecx_contextt *context, uint16 slave, uint16 index, uint8 subinde
                                  else /* segments follow */
                                  {
                                     /* copy to parameter buffer */
-                                     memcpy(hp, &(aSDOp->Index), Framedatasize);
+                                    memcpy(hp, &(aSDOp->Index), Framedatasize);
                                     /* increment buffer pointer */
                                     hp += Framedatasize;
                                  }
@@ -819,7 +821,7 @@ int ecx_readPDOassignCA(ecx_contextt *context, uint16 Slave, uint16 PDOassign)
  * 1C00:01 SM0 type -> 1C10\n
  * 1C00:02 SM1 type -> 1C11\n
  * 1C00:03 SM2 type -> 1C12\n
- * 1C00:04 SM4 type -> 1C13\n
+ * 1C00:04 SM3 type -> 1C13\n
  * Type 0 = unused, 1 = mailbox in, 2 = mailbox out,
  * 3 = outputs (RxPDO), 4 = inputs (TxPDO).
  *
@@ -966,7 +968,7 @@ int ecx_readPDOmapCA(ecx_contextt *context, uint16 Slave, int *Osize, int *Isize
       /* iterate for every SM type defined */
       for (iSM = 2 ; iSM <= nSM ; iSM++)
       {
-          tSM = context->SMcommtype->SMtype[iSM];
+         tSM = context->SMcommtype->SMtype[iSM];
 
 // start slave bug prevention code, remove if possible            
          if((iSM == 2) && (tSM == 2)) // SM2 has type 2 == mailbox out, this is a bug in the slave!

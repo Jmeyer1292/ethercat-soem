@@ -65,7 +65,7 @@ extern "C"
  * comment if application uses only ecx_ functions and own context */
 #define EC_VER1
 
-#include "osal.h"
+#include <ethercat_soem/osal.h>
 
 /** return value general error */
 #define EC_ERROR           -3
@@ -427,6 +427,12 @@ enum
    ECT_REG_PDICTL      = 0x0140,
    ECT_REG_IRQMASK     = 0x0200,
    ECT_REG_RXERR       = 0x0300,
+   ECT_REG_FRXERR      = 0x0308,
+   ECT_REG_EPUECNT     = 0x030C,
+   ECT_REG_PECNT       = 0x030D,
+   ECT_REG_PECODE      = 0x030E,
+   ECT_REG_LLCNT       = 0x0310,
+   ECT_REG_WDCNT       = 0x0442,
    ECT_REG_EEPCFG      = 0x0500,
    ECT_REG_EEPCTL      = 0x0502,
    ECT_REG_EEPSTAT     = 0x0502,

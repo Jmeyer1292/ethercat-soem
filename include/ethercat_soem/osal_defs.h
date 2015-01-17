@@ -14,25 +14,22 @@
  * http://www.rt-labs.com
  * Copyright (C) 2009. rt-labs AB, Sweden. All rights reserved.
  *------------------------------------------------------------------------------
- * $Id: oshw.h 452 2013-02-26 21:02:58Z smf.arthur $
+ * $Id: osal_defs.h 472 2013-04-08 11:39:51Z rtlaka $
  *------------------------------------------------------------------------------
  */
 
-/** \file 
- * \brief
- * Headerfile for ethercatbase.c 
- */
+#ifndef _osal_defs_
+#define _osal_defs_
 
-#ifndef _oshw_
-#define _oshw_
+#ifndef PACKED
+#define PACKED_BEGIN
+#define PACKED  __attribute__((__packed__))
+#define PACKED_END
+#endif
 
-#include "ethercattype.h"
-#include "nicdrv.h"
-#include "ethercatmain.h"
-
-uint16 oshw_htons(uint16 hostshort);
-uint16 oshw_ntohs(uint16 networkshort);
-ec_adaptert * oshw_find_adapters(void);
-void oshw_free_adapters(ec_adaptert * adapter);
+#include <pthread.h>
+#define OSAL_THREAD_HANDLE pthread_t *
+#define OSAL_THREAD_FUNC void
+#define OSAL_THREAD_FUNC_RT void
 
 #endif

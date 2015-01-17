@@ -7,7 +7,7 @@
  * Copyright (C) 2005-2013 Speciaal Machinefabriek Ketels v.o.f.
  * Copyright (C) 2005-2013 Arthur Ketels
  * Copyright (C) 2008-2009 TU/e Technische Universiteit Eindhoven 
- * Thanks to Hidde Verhoef for testing and improving the SoE module
+ * Thanks to Hidde Verstoep for testing and improving the SoE module
  *
  * SOEM is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License version 2 as published by the Free
@@ -53,6 +53,7 @@
 #include "ethercat_soem/ethercatmain.h"
 #include "ethercat_soem/ethercatsoe.h"
 
+#define EC_SOE_MAX_DRIVES 8
 
 /** SoE (Servo over EtherCAT) mailbox structure */
 PACKED_BEGIN
@@ -83,6 +84,7 @@ void ecx_SoEerror(ecx_contextt *context, uint16 Slave, uint16 idn, uint16 Error)
 {
    ec_errort Ec;
 
+   memset(&Ec, 0, sizeof(Ec));
    Ec.Time = osal_current_time();
    Ec.Slave = Slave;
    Ec.Index = idn;
@@ -348,50 +350,54 @@ int ecx_readIDNmap(ecx_contextt *context, uint16 slave, int *Osize, int *Isize)
    int retVal = 0;
    int   wkc;
    int psize;
+   int driveNr;
    uint16 entries, itemcount;
    ec_SoEmappingt     SoEmapping;
    ec_SoEattributet   SoEattribute;
 
    *Isize = 0;
    *Osize = 0;
-   psize = sizeof(SoEmapping);
-   /* read output mapping via SoE */
-   wkc = ecx_SoEread(context, slave, 0, EC_SOE_VALUE_B, EC_IDN_MDTCONFIG, &psize, &SoEmapping, EC_TIMEOUTRXM);
-   if ((wkc > 0) && (psize >= 4) && ((entries = etohs(SoEmapping.currentlength) / 2) > 0) && (entries <= EC_SOE_MAXMAPPING))
+   for(driveNr = 0; driveNr < EC_SOE_MAX_DRIVES; driveNr++)
    {
-      /* command word (uint16) is always mapped but not in list */
-      *Osize = 16; 
-      for (itemcount = 0 ; itemcount < entries ; itemcount++)
+      psize = sizeof(SoEmapping);
+      /* read output mapping via SoE */
+      wkc = ecx_SoEread(context, slave, driveNr, EC_SOE_VALUE_B, EC_IDN_MDTCONFIG, &psize, &SoEmapping, EC_TIMEOUTRXM);
+      if ((wkc > 0) && (psize >= 4) && ((entries = etohs(SoEmapping.currentlength) / 2) > 0) && (entries <= EC_SOE_MAXMAPPING))
       {
-         psize = sizeof(SoEattribute);
-         /* read attribute of each IDN in mapping list */
-         wkc = ecx_SoEread(context, slave, 0, EC_SOE_ATTRIBUTE_B, SoEmapping.idn[itemcount], &psize, &SoEattribute, EC_TIMEOUTRXM);
-         if ((wkc > 0) && (!SoEattribute.list))
+         /* command word (uint16) is always mapped but not in list */
+         *Osize = 16; 
+         for (itemcount = 0 ; itemcount < entries ; itemcount++)
          {
-            /* length : 0 = 8bit, 1 = 16bit .... */
-            *Osize += (int)8 << SoEattribute.length;
+            psize = sizeof(SoEattribute);
+            /* read attribute of each IDN in mapping list */
+            wkc = ecx_SoEread(context, slave, driveNr, EC_SOE_ATTRIBUTE_B, SoEmapping.idn[itemcount], &psize, &SoEattribute, EC_TIMEOUTRXM);
+            if ((wkc > 0) && (!SoEattribute.list))
+            {
+               /* length : 0 = 8bit, 1 = 16bit .... */
+               *Osize += (int)8 << SoEattribute.length;
+            }   
          }   
       }   
-   }   
-   psize = sizeof(SoEmapping);
-   /* read input mapping via SoE */
-   wkc = ecx_SoEread(context, slave, 0, EC_SOE_VALUE_B, EC_IDN_ATCONFIG, &psize, &SoEmapping, EC_TIMEOUTRXM);
-   if ((wkc > 0) && (psize >= 4) && ((entries = etohs(SoEmapping.currentlength) / 2) > 0) && (entries <= EC_SOE_MAXMAPPING))
-   {
-      /* status word (uint16) is always mapped but not in list */
-      *Isize = 16; 
-      for (itemcount = 0 ; itemcount < entries ; itemcount++)
+      psize = sizeof(SoEmapping);
+      /* read input mapping via SoE */
+      wkc = ecx_SoEread(context, slave, driveNr, EC_SOE_VALUE_B, EC_IDN_ATCONFIG, &psize, &SoEmapping, EC_TIMEOUTRXM);
+      if ((wkc > 0) && (psize >= 4) && ((entries = etohs(SoEmapping.currentlength) / 2) > 0) && (entries <= EC_SOE_MAXMAPPING))
       {
-         psize = sizeof(SoEattribute);
-         /* read attribute of each IDN in mapping list */
-         wkc = ecx_SoEread(context, slave, 0, EC_SOE_ATTRIBUTE_B, SoEmapping.idn[itemcount], &psize, &SoEattribute, EC_TIMEOUTRXM);
-         if ((wkc > 0) && (!SoEattribute.list))
+         /* status word (uint16) is always mapped but not in list */
+         *Isize = 16; 
+         for (itemcount = 0 ; itemcount < entries ; itemcount++)
          {
-            /* length : 0 = 8bit, 1 = 16bit .... */
-            *Isize += (int)8 << SoEattribute.length;
+            psize = sizeof(SoEattribute);
+            /* read attribute of each IDN in mapping list */
+            wkc = ecx_SoEread(context, slave, driveNr, EC_SOE_ATTRIBUTE_B, SoEmapping.idn[itemcount], &psize, &SoEattribute, EC_TIMEOUTRXM);
+            if ((wkc > 0) && (!SoEattribute.list))
+            {
+               /* length : 0 = 8bit, 1 = 16bit .... */
+               *Isize += (int)8 << SoEattribute.length;
+            }   
          }   
       }   
-   }   
+   }
 
    /* found some I/O bits ? */
    if ((*Isize > 0) || (*Osize > 0))

@@ -27,7 +27,7 @@
  * This exception does not invalidate any other reasons why a work based on
  * this file might be covered by the GNU General Public License.
  *
- * The EtherCAT Technology, the trade name and logo “EtherCAT” are the intellectual
+ * The EtherCAT Technology, the trade name and logo "EtherCAT" are the intellectual
  * property of, and protected by Beckhoff Automation GmbH. You can use SOEM for
  * the sole purpose of creating, using and/or selling or otherwise distributing
  * an EtherCAT network master provided that an EtherCAT Master License is obtained
@@ -56,6 +56,37 @@
 #include "ethercat_soem/ethercattype.h"
 #include "ethercat_soem/ethercatbase.h"
 
+/** Write data to EtherCAT datagram.
+ *
+ * @param[out] datagramdata   = data part of datagram
+ * @param[in]  com            = command
+ * @param[in]  length         = length of databuffer
+ * @param[in]  data           = databuffer to be copied into datagram
+ */
+static void ecx_writedatagramdata(void *datagramdata, ec_cmdtype com, uint16 length, const void * data)
+{
+   if (length > 0)
+   {
+      switch (com)
+      {
+         case EC_CMD_NOP:
+            /* Fall-through */
+         case EC_CMD_APRD:
+            /* Fall-through */
+         case EC_CMD_FPRD:
+            /* Fall-through */
+         case EC_CMD_BRD:
+            /* Fall-through */
+         case EC_CMD_LRD:
+            /* no data to write. initialise data so frame is in a known state */
+            memset(datagramdata, 0, length);
+            break;
+         default:
+            memcpy(datagramdata, data, length);
+            break;
+      }
+   }
+}
 
 /** Generate and set EtherCAT datagram in a standard ethernet frame.
  *
@@ -84,10 +115,7 @@ int ecx_setupdatagram(ecx_portt *port, void *frame, uint8 com, uint8 idx, uint16
    datagramP->ADP = htoes(ADP);
    datagramP->ADO = htoes(ADO);
    datagramP->dlength = htoes(length); 
-   if (length > 0)
-   {
-      memcpy(&frameP[ETH_HEADERSIZE + EC_HEADERSIZE], data, length);
-   }
+   ecx_writedatagramdata(&frameP[ETH_HEADERSIZE + EC_HEADERSIZE], com, length, data);
    /* set WKC to zero */
    frameP[ETH_HEADERSIZE + EC_HEADERSIZE + length] = 0x00;
    frameP[ETH_HEADERSIZE + EC_HEADERSIZE + length + 1] = 0x00;
@@ -140,10 +168,7 @@ int ecx_adddatagram(ecx_portt *port, void *frame, uint8 com, uint8 idx, boolean 
       /* this is the last datagram in the frame */
       datagramP->dlength = htoes(length); 
    }
-   if (length > 0)
-   {
-      memcpy(&frameP[prevlength + EC_HEADERSIZE - EC_ELENGTHSIZE], data, length);
-   }   
+   ecx_writedatagramdata(&frameP[prevlength + EC_HEADERSIZE - EC_ELENGTHSIZE], com, length, data);
    /* set WKC to zero */
    frameP[prevlength + EC_HEADERSIZE - EC_ELENGTHSIZE + length] = 0x00;
    frameP[prevlength + EC_HEADERSIZE - EC_ELENGTHSIZE + length + 1] = 0x00;

@@ -108,9 +108,9 @@ int                     ec_slavecount;
 ec_groupt               ec_group[EC_MAXGROUP];
 
 /** cache for EEPROM read functions */
-static uint8            esibuf[EC_MAXEEPBUF];
+static uint8            ec_esibuf[EC_MAXEEPBUF];
 /** bitmap for filled cache buffer bytes */
-static uint32           esimap[EC_MAXEEPBITMAP];
+static uint32           ec_esimap[EC_MAXEEPBITMAP];
 /** current slave for EEPROM cache buffer */
 static ec_eringt        ec_elist;
 static ec_idxstackT     ec_idxstack;
@@ -141,8 +141,8 @@ ecx_contextt  ecx_context = {
     EC_MAXSLAVE,     // .maxslave      =
     &ec_group[0],    // .grouplist     =
     EC_MAXGROUP,     // .maxgroup      =
-    &esibuf[0],      // .esibuf        =
-    &esimap[0],      // .esimap        =
+    &ec_esibuf[0],   // .esibuf        =
+    &ec_esimap[0],   // .esimap        =
     0,               // .esislave      =
     &ec_elist,       // .elist         =
     &ec_idxstack,    // .idxstack      =
@@ -154,7 +154,8 @@ ecx_contextt  ecx_context = {
     &ec_PDOassign,   // .PDOassign     =
     &ec_PDOdesc,     // .PDOdesc       =
     &ec_SM,          // .eepSM         =
-    &ec_FMMU         // .eepFMMU       =
+    &ec_FMMU,        // .eepFMMU       =
+    NULL             // .FOEhook()
 };  
 #endif
     
@@ -254,6 +255,7 @@ void ecx_packeterror(ecx_contextt *context, uint16 Slave, uint16 Index, uint8 Su
 {
    ec_errort Ec;
 
+   memset(&Ec, 0, sizeof(Ec));
    Ec.Time = osal_current_time();
    Ec.Slave = Slave;
    Ec.Index = Index;
@@ -274,6 +276,7 @@ static void ecx_mbxerror(ecx_contextt *context, uint16 Slave,uint16 Detail)
 {
    ec_errort Ec;
 
+   memset(&Ec, 0, sizeof(Ec));
    Ec.Time = osal_current_time();
    Ec.Slave = Slave;
    Ec.Index = 0;
@@ -298,6 +301,7 @@ static void ecx_mbxemergencyerror(ecx_contextt *context, uint16 Slave,uint16 Err
 {
    ec_errort Ec;
 
+   memset(&Ec, 0, sizeof(Ec));
    Ec.Time = osal_current_time();
    Ec.Slave = Slave;
    Ec.Index = 0;
@@ -373,7 +377,7 @@ uint8 ecx_siigetbyte(ecx_contextt *context, uint16 slave, uint16 address)
    retval = 0xff;
    if (slave != context->esislave) /* not the same slave? */
    {
-      memset(context->esimap, 0x00, EC_MAXEEPBITMAP); /* clear esibuf cache map */
+      memset(context->esimap, 0x00, EC_MAXEEPBITMAP * sizeof(uint32)); /* clear esibuf cache map */
       context->esislave = slave;
    }
    if (address < EC_MAXEEPBUF)
@@ -707,32 +711,87 @@ int ecx_siiPDO(ecx_contextt *context, uint16 slave, ec_eepromPDOt* PDO, uint8 t)
    return (Size);
 }
 
+#define MAX_FPRD_MULTI 64
+
+int ecx_FPRD_multi(ecx_contextt *context, int n, uint16 *configlst, ec_alstatust *slstatlst, int timeout)
+{
+   int wkc;
+   uint8 idx;
+   ecx_portt *port;
+   int sldatapos[MAX_FPRD_MULTI];
+   int slcnt;
+
+   port = context->port;
+   idx = ecx_getindex(port);
+   slcnt = 0;
+   ecx_setupdatagram(port, &(port->txbuf[idx]), EC_CMD_FPRD, idx,
+      *(configlst + slcnt), ECT_REG_ALSTAT, sizeof(ec_alstatust), slstatlst + slcnt);
+   sldatapos[slcnt] = EC_HEADERSIZE;
+   while(++slcnt < (n - 1))
+   {
+      sldatapos[slcnt] = ecx_adddatagram(port, &(port->txbuf[idx]), EC_CMD_FPRD, idx, TRUE,
+                            *(configlst + slcnt), ECT_REG_ALSTAT, sizeof(ec_alstatust), slstatlst + slcnt);
+   }
+   if(slcnt < n)
+   {
+      sldatapos[slcnt] = ecx_adddatagram(port, &(port->txbuf[idx]), EC_CMD_FPRD, idx, FALSE,
+                            *(configlst + slcnt), ECT_REG_ALSTAT, sizeof(ec_alstatust), slstatlst + slcnt);
+   }
+   wkc = ecx_srconfirm(port, idx, timeout);
+   if (wkc >= 0)
+   {
+      for(slcnt = 0 ; slcnt < n ; slcnt++)
+      {
+         memcpy(slstatlst + slcnt, &(port->rxbuf[idx][sldatapos[slcnt]]), sizeof(ec_alstatust));
+      }
+   }
+   ecx_setbufstat(port, idx, EC_BUF_EMPTY);
+   return wkc;
+}
+
 /** Read all slave states in ec_slave.
  * @param[in]  context        = context struct
  * @return lowest state found
  */
 int ecx_readstate(ecx_contextt *context)
 {
-   uint16 slave, configadr, lowest, rval;
-   ec_alstatust slstat;
+   uint16 slave, fslave, lslave, configadr, lowest, rval;
+   ec_alstatust sl[MAX_FPRD_MULTI];
+   uint16 slca[MAX_FPRD_MULTI];
 
    lowest = 0xff;
    context->slavelist[0].ALstatuscode = 0;
-   for (slave = 1; slave <= *(context->slavecount); slave++)
+   fslave = 1;
+   do
    {
-      configadr = context->slavelist[slave].configadr;
-      slstat.alstatus = 0;
-      slstat.alstatuscode = 0;
-      ecx_FPRD(context->port, configadr, ECT_REG_ALSTAT, sizeof(slstat), &slstat, EC_TIMEOUTRET3);
-      rval = etohs(slstat.alstatus);
-      context->slavelist[slave].ALstatuscode = etohs(slstat.alstatuscode);
-      if (rval < lowest)
+      lslave = *(context->slavecount);
+      if ((lslave - fslave) >= MAX_FPRD_MULTI)
       {
-         lowest = rval;
+         lslave = fslave + MAX_FPRD_MULTI - 1;
       }
-      context->slavelist[slave].state = rval;
-      context->slavelist[0].ALstatuscode |= context->slavelist[slave].ALstatuscode;
-   }
+      for (slave = fslave; slave <= lslave; slave++)
+      {
+         const ec_alstatust zero = {0, 0, 0};
+
+         configadr = context->slavelist[slave].configadr;
+         slca[slave - fslave] = configadr;
+         sl[slave - fslave] = zero;
+      }
+      ecx_FPRD_multi(context, (lslave - fslave) + 1, &(slca[0]), &(sl[0]), EC_TIMEOUTRET3);
+      for (slave = fslave; slave <= lslave; slave++)
+      {
+         configadr = context->slavelist[slave].configadr;
+         rval = etohs(sl[slave - fslave].alstatus);
+         context->slavelist[slave].ALstatuscode = etohs(sl[slave - fslave].alstatuscode);
+         if (rval < lowest)
+         {
+            lowest = rval;
+         }
+         context->slavelist[slave].state = rval;
+         context->slavelist[0].ALstatuscode |= context->slavelist[slave].ALstatuscode;
+      }
+      fslave = lslave + 1;
+   } while(lslave < *(context->slavecount));   
    context->slavelist[0].state = lowest;
 
    return lowest;
@@ -831,7 +890,7 @@ uint8 ec_nextmbxcnt(uint8 cnt)
  */
 void ec_clearmbx(ec_mbxbuft *Mbx)
 {
-    memset(*Mbx, 0x00, EC_MAXMBX);
+    memset(Mbx, 0x00, EC_MAXMBX);
 }
 
 /** Check if IN mailbox of slave is empty.
@@ -851,6 +910,7 @@ int ecx_mbxempty(ecx_contextt *context, uint16 slave, int timeout)
    configadr = context->slavelist[slave].configadr;
    do
    {
+      SMstat = 0;
       wkc = ecx_FPRD(context->port, configadr, ECT_REG_SM0STAT, sizeof(SMstat), &SMstat, EC_TIMEOUTRET);
       SMstat = etohs(SMstat);
       if (((SMstat & 0x08) != 0) && (timeout > EC_LOCALDELAY))
@@ -883,7 +943,7 @@ int ecx_mbxsend(ecx_contextt *context, uint16 slave,ec_mbxbuft *mbx, int timeout
    wkc = 0;
    configadr = context->slavelist[slave].configadr;
    mbxl = context->slavelist[slave].mbx_l;
-   if (mbxl > 0)
+   if ((mbxl > 0) && (mbxl <= EC_MAXMBX))
    {
       if (ecx_mbxempty(context, slave, timeout))
       {
@@ -921,7 +981,7 @@ int ecx_mbxreceive(ecx_contextt *context, uint16 slave, ec_mbxbuft *mbx, int tim
 
    configadr = context->slavelist[slave].configadr;
    mbxl = context->slavelist[slave].mbx_rl;
-   if (mbxl > 0)
+   if ((mbxl > 0) && (mbxl <= EC_MAXMBX))
    {
       osal_timert timer;
 
@@ -929,6 +989,7 @@ int ecx_mbxreceive(ecx_contextt *context, uint16 slave, ec_mbxbuft *mbx, int tim
       wkc = 0;
       do /* wait for read mailbox available */
       {
+         SMstat = 0;
          wkc = ecx_FPRD(context->port, configadr, ECT_REG_SM1STAT, sizeof(SMstat), &SMstat, EC_TIMEOUTRET);
          SMstat = etohs(SMstat);
          if (((SMstat & 0x08) == 0) && (timeout > EC_LOCALDELAY))
@@ -1141,6 +1202,7 @@ uint16 ecx_eeprom_waitnotbusyAP(ecx_contextt *context, uint16 aiadr,uint16 *esta
       {
          osal_usleep(EC_LOCALDELAY);
       }
+      *estat = 0;
       wkc=ecx_APRD(context->port, aiadr, ECT_REG_EEPSTAT, sizeof(*estat), estat, EC_TIMEOUTRET);
       *estat = etohs(*estat);
    }
@@ -1309,6 +1371,7 @@ uint16 ecx_eeprom_waitnotbusyFP(ecx_contextt *context, uint16 configadr,uint16 *
       {
          osal_usleep(EC_LOCALDELAY);
       }
+      *estat = 0;
       wkc=ecx_FPRD(context->port, configadr, ECT_REG_EEPSTAT, sizeof(*estat), estat, EC_TIMEOUTRET);
       *estat = etohs(*estat);
    }
@@ -1626,7 +1689,7 @@ int ecx_send_processdata_group(ecx_contextt *context, uint8 group)
                   /* FPRMW in second datagram */
                   context->DCtO = ecx_adddatagram(context->port, &(context->port->txbuf[idx]), EC_CMD_FRMW, idx, FALSE,
                                            context->slavelist[context->grouplist[group].DCnext].configadr,
-                                           ECT_REG_DCSYSTIME, sizeof(context->DCtime), context->DCtime);
+                                           ECT_REG_DCSYSTIME, sizeof(int64), context->DCtime);
                   first = FALSE;
                }
                /* send frame */
@@ -1664,7 +1727,7 @@ int ecx_send_processdata_group(ecx_contextt *context, uint8 group)
                   /* FPRMW in second datagram */
                   context->DCtO = ecx_adddatagram(context->port, &(context->port->txbuf[idx]), EC_CMD_FRMW, idx, FALSE,
                                            context->slavelist[context->grouplist[group].DCnext].configadr,
-                                           ECT_REG_DCSYSTIME, sizeof(context->DCtime), context->DCtime);
+                                           ECT_REG_DCSYSTIME, sizeof(int64), context->DCtime);
                   first = FALSE;
                }
                /* send frame */
@@ -1703,7 +1766,7 @@ int ecx_send_processdata_group(ecx_contextt *context, uint8 group)
                /* FPRMW in second datagram */
                context->DCtO = ecx_adddatagram(context->port, &(context->port->txbuf[idx]), EC_CMD_FRMW, idx, FALSE,
                                         context->slavelist[context->grouplist[group].DCnext].configadr,
-                                        ECT_REG_DCSYSTIME, sizeof(context->DCtime), context->DCtime);
+                                        ECT_REG_DCSYSTIME, sizeof(int64), context->DCtime);
                first = FALSE;
             }
             /* send frame */
@@ -1826,17 +1889,6 @@ boolean ec_iserror(void)
 void ec_packeterror(uint16 Slave, uint16 Index, uint8 SubIdx, uint16 ErrorCode)
 {
    ecx_packeterror(&ecx_context, Slave, Index, SubIdx, ErrorCode);
-}
-
-static void ec_mbxerror(uint16 Slave,uint16 Detail)
-{
-   ecx_mbxerror (&ecx_context, Slave, Detail);
-}
-
-static void ec_mbxemergencyerror(uint16 Slave,uint16 ErrorCode,uint16 ErrorReg,
-    uint8 b1, uint16 w1, uint16 w2)
-{
-   ecx_mbxemergencyerror (&ecx_context, Slave, ErrorCode, ErrorReg, b1, w1, w2);
 }
 
 int ec_init(char * ifname)
