@@ -1,3 +1,8 @@
+#DEPRECTATED AS OF HYDRO
+**This package has been deprecated as of the ROS Hydro release.  An official SOEM library is available under indigo using `sudo apt-get install ros-indigo-soem**
+
+---
+
 ## ethercat-soem
 
 This package provides an EtherCAT Master implementation using a `catkinized` version of the [OpenEtherCAT Society's Master Library](https://github.com/OpenEtherCATsociety/SOEM) v1.30.
