@@ -107,15 +107,6 @@ const uint16 secMAC[3] = { 0x0404, 0x0404, 0x0404 };
 /** second MAC word is used for identification */
 #define RX_SEC secMAC[1]
 
-static void ecx_clear_rxbufstat(int *rxbufstat)
-{
-   int i;
-   for(i = 0; i < EC_MAXBUF; i++)
-   {
-      rxbufstat[i] = EC_BUF_EMPTY;
-   }
-}
-
 /** Basic setup to connect NIC to socket.
  * @param[in] port        = port context struct
  * @param[in] ifname      = Name of NIC device, f.e. "eth0"
@@ -148,7 +139,6 @@ int ecx_setupnic(ecx_portt *port, const char *ifname, int secondary)
          port->redport->stack.rxbuf       = &(port->redport->rxbuf);
          port->redport->stack.rxbufstat   = &(port->redport->rxbufstat);
          port->redport->stack.rxsa        = &(port->redport->rxsa);
-         ecx_clear_rxbufstat(&(port->redport->rxbufstat[0]));
       }
       else
       {
@@ -171,7 +161,6 @@ int ecx_setupnic(ecx_portt *port, const char *ifname, int secondary)
       port->stack.rxbuf       = &(port->rxbuf);
       port->stack.rxbufstat   = &(port->rxbufstat);
       port->stack.rxsa        = &(port->rxsa);
-      ecx_clear_rxbufstat(&(port->rxbufstat[0]));
       psock = &(port->sockhandle);
    }   
    /* we use RAW packet socket, with packet type ETH_P_ECAT */
@@ -192,7 +181,7 @@ int ecx_setupnic(ecx_portt *port, const char *ifname, int secondary)
    /* reset flags of NIC interface */
    r = ioctl(*psock, SIOCGIFFLAGS, &ifr);
    /* set flags of NIC interface, here promiscuous and broadcast */
-   ifr.ifr_flags = ifr.ifr_flags | IFF_PROMISC | IFF_BROADCAST;
+   ifr.ifr_flags = ifr.ifr_flags || IFF_PROMISC || IFF_BROADCAST;
    r = ioctl(*psock, SIOCGIFFLAGS, &ifr);
    /* bind socket to protocol, in this case RAW EtherCAT */
    sll.sll_family = AF_PACKET;
