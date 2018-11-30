@@ -1,25 +1,15 @@
-/******************************************************************************
- *                *          ***                    ***
- *              ***          ***                    ***
- * ***  ****  **********     ***        *****       ***  ****          *****
- * *********  **********     ***      *********     ************     *********
- * ****         ***          ***              ***   ***       ****   ***
- * ***          ***  ******  ***      ***********   ***        ****   *****
- * ***          ***  ******  ***    *************   ***        ****      *****
- * ***          ****         ****   ***       ***   ***       ****          ***
- * ***           *******      ***** **************  *************    *********
- * ***             *****        ***   *******   **  **  ******         *****
- *                           t h e  r e a l t i m e  t a r g e t  e x p e r t s
- *
- * http://www.rt-labs.com
- * Copyright (C) 2009. rt-labs AB, Sweden. All rights reserved.
- *------------------------------------------------------------------------------
- * $Id: osal_defs.h 472 2013-04-08 11:39:51Z rtlaka $
- *------------------------------------------------------------------------------
+/*
+ * Licensed under the GNU General Public License version 2 with exceptions. See
+ * LICENSE file in the project root for full license information
  */
 
 #ifndef _osal_defs_
 #define _osal_defs_
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 #ifndef PACKED
 #define PACKED_BEGIN
@@ -31,5 +21,9 @@
 #define OSAL_THREAD_HANDLE pthread_t *
 #define OSAL_THREAD_FUNC void
 #define OSAL_THREAD_FUNC_RT void
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
